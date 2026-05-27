@@ -396,7 +396,8 @@ body {
 }
 
 .accion-btn:hover {
-  background: rgba(255, 255, 255, 0.95);
+  background:#3a3a3a;
+  color: rgba(255, 255, 255, 0.75);
 }
 
 .accion-btn.pressed,
