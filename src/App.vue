@@ -13,7 +13,19 @@
       <transition name="fade">
         <div v-if="showResponse" class="respuesta-card">
           <div class="respuesta-body">
-            <p>Respuesta</p>
+            <template v-if="shoppingList">
+              <p class="response-title">Simulación de precios</p>
+              <ul class="price-list">
+                <li v-for="item in priceMock.items" :key="item.name">
+                  <span>{{ item.name }}</span>
+                  <strong>{{ item.price }}</strong>
+                </li>
+              </ul>
+              <p class="response-total">Total estimado: <strong>{{ priceMock.total }}</strong></p>
+            </template>
+            <template v-else>
+              <p>Respuesta</p>
+            </template>
           </div>
           <button
             class="accion-btn"
@@ -23,7 +35,7 @@
             @mouseleave="pressed = false"
             :class="{ pressed }"
           >
-            Acción
+            {{ shoppingList ? 'Buscar supermercados' : 'Acción' }}
           </button>
         </div>
       </transition>
@@ -32,12 +44,50 @@
 </template>
 
 <script setup>
-import { ref, onBeforeUnmount } from 'vue'
+import { ref, computed, onBeforeUnmount } from 'vue'
 
 const text = ref('')
 const showResponse = ref(false)
 const pressed = ref(false)
 let timerId = null
+
+const shoppingList = computed(() => {
+  const content = text.value.toLowerCase().trim()
+  if (!content) return false
+
+  const shoppingKeywords = ['comprar', 'lista', 'pan', 'leche', 'huevos', 'tomate', 'manzana', 'arroz', 'queso', 'pollo', 'verduras', 'frutas', 'detergente', 'jabon', 'cereal']
+  const hasShoppingWord = shoppingKeywords.some((word) => content.includes(word))
+  const lines = content.split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
+  const lineCount = lines.length
+  const listStyle = lines.some((line) => /^[\-\*\d\.]+\s+/.test(line) || line.includes(','))
+
+  return hasShoppingWord && (lineCount > 1 || listStyle)
+})
+
+const priceMock = computed(() => {
+  if (!shoppingList.value) return { items: [], total: '$0.00' }
+
+  const lines = text.value
+    .split(/\r?\n|,/) 
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+
+  const items = lines.slice(0, 6).map((line) => {
+    const name = line.replace(/^[\-\*\d\.\s]+/, '').trim()
+    const base = Math.max(1, Math.min(10, Math.round(name.length / 2)))
+    const value = (base + (name.length % 4)) * 0.75
+    return {
+      name: name || 'Artículo',
+      price: `$${value.toFixed(2)}`
+    }
+  })
+
+  const total = items.reduce((sum, item) => {
+    return sum + parseFloat(item.price.replace('$', ''))
+  }, 0)
+
+  return { items, total: `$${total.toFixed(2)}` }
+})
 
 const onInput = () => {
   showResponse.value = false
@@ -143,6 +193,33 @@ body {
   font-size: 1.03rem;
 }
 
+.response-title {
+  margin: 0 0 1rem 0;
+  font-weight: 700;
+}
+
+.price-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1rem 0;
+}
+
+.price-list li {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.4rem 0;
+  border-bottom: 1px dashed rgba(58, 58, 58, 0.14);
+}
+
+.price-list li:last-child {
+  border-bottom: none;
+}
+
+.response-total {
+  margin: 1rem 0 0;
+  font-weight: 700;
+}
+
 .accion-btn {
   align-self: flex-start;
   margin-top: auto;
@@ -152,12 +229,13 @@ body {
   border: 1px solid rgba(60, 60, 60, 0.12);
   border-radius: 999px;
   cursor: pointer;
-  transition: background 220ms ease, transform 120ms ease, color 220ms ease, border-color 220ms ease;
+  transition: background 220ms ease, transform 120ms ease, color 220ms ease, border-color 220ms ease, box-shadow 220ms ease;
   font: inherit;
 }
 
 .accion-btn:hover {
   background: rgba(60, 60, 60, 0.12);
+  box-shadow: 0 4px 10px rgba(60, 60, 60, 0.08);
 }
 
 .accion-btn.pressed,
