@@ -13,14 +13,55 @@
       <transition name="fade">
         <div v-if="showResponse" class="respuesta-card">
           <div class="respuesta-body">
-            <template v-if="taskList">
-              <p class="response-title">Plan de tareas</p>
-              <ul class="price-list">
-                <li v-for="item in taskPlan.items" :key="item.name">
-                  <span>{{ item.name }}</span>
-                </li>
-              </ul>
-              <p class="response-total">Total de tareas: <strong>{{ taskPlan.total }}</strong></p>
+            <template v-if="noteMode">
+              <p class="response-title">Notas estructuradas</p>
+
+              <template v-if="noteStructure.ideas.length">
+                <p class="section-title">Ideas</p>
+                <ul class="price-list">
+                  <li v-for="item in noteStructure.ideas" :key="item">
+                    <span>{{ item }}</span>
+                  </li>
+                </ul>
+              </template>
+
+              <template v-if="noteStructure.actions.length">
+                <p class="section-title">Acciones</p>
+                <ul class="price-list">
+                  <li v-for="item in noteStructure.actions" :key="item">
+                    <span>{{ item }}</span>
+                  </li>
+                </ul>
+              </template>
+
+              <template v-if="noteStructure.questions.length">
+                <p class="section-title">Preguntas</p>
+                <ul class="price-list">
+                  <li v-for="item in noteStructure.questions" :key="item">
+                    <span>{{ item }}</span>
+                  </li>
+                </ul>
+              </template>
+
+              <template v-if="noteStructure.decisions.length">
+                <p class="section-title">Decisiones</p>
+                <ul class="price-list">
+                  <li v-for="item in noteStructure.decisions" :key="item">
+                    <span>{{ item }}</span>
+                  </li>
+                </ul>
+              </template>
+
+              <template v-if="noteStructure.others.length">
+                <p class="section-title">Otros</p>
+                <ul class="price-list">
+                  <li v-for="item in noteStructure.others" :key="item">
+                    <span>{{ item }}</span>
+                  </li>
+                </ul>
+              </template>
+
+              <p class="response-total">Total de segmentos: <strong>{{ noteStructure.total }}</strong></p>
             </template>
             <template v-else>
               <p>Respuesta</p>
@@ -34,7 +75,7 @@
             @mouseleave="pressed = false"
             :class="{ pressed }"
           >
-            {{ taskList ? 'Ver agenda' : 'Acción' }}
+            {{ noteMode ? 'Organizar notas' : 'Acción' }}
           </button>
         </div>
       </transition>
@@ -50,32 +91,49 @@ const showResponse = ref(false)
 const pressed = ref(false)
 let timerId = null
 
-const taskKeywords = [
-  'reunión', 'reunion', 'meeting', 'cita', 'call', 'llamada',
-  'tarea', 'pendiente', 'agenda', 'recordar', 'hoy', 'mañana', 'manana', 'horario'
+const noteKeywords = [
+  'idea', 'ideas', 'pendiente', 'pendientes', 'pregunta', 'preguntas',
+  'decisión', 'decisiones', 'decidir', 'recordar', 'nota', 'notas',
+  'brainstorm', 'reunión', 'reunion', 'kickoff', 'cliente', 'campaña', 'proyecto', 'equipo'
 ]
 
-const timeRegex = /\b(?:hoy|mañana|manana|esta semana|este viernes|el lunes|a las \d{1,2}(?::\d{2})?|\b\d{1,2}:\d{2}\b|\b\d{1,2}h\b)\b/i
-const listMarkerRegex = /^[\-\*\d\.]+\s+/
-const sentenceSeparatorRegex = /[,;•]+|\s+y\s+|\s+and\s+/i
+const actionKeywords = [
+  'hacer', 'revisar', 'llamar', 'enviar', 'preguntar', 'definir', 'terminar', 'completar', 'organizar', 'crear', 'coordinar', 'agendar'
+]
 
-const isTaskLike = (content) => {
-  return taskKeywords.some((word) => content.includes(word)) || timeRegex.test(content)
+const decisionKeywords = [
+  'decidir', 'decisión', 'decisiones', 'elegir', 'optar', 'confirmar', 'aprobar'
+]
+
+const questionKeywords = [
+  'qué', 'que', 'por qué', 'porque', 'cómo', 'como', 'cuándo', 'cuando', 'dónde', 'donde', 'quién', 'quien', 'para qué', 'para que'
+]
+
+const ideaKeywords = [
+  'podría', 'podrias', 'podríamos', 'podemos', 'posible', 'quizá', 'quizas', 'tal vez', 'idea', 'ideas', 'sugerencia', 'sugerir'
+]
+
+const sentenceSeparatorRegex = /[,;•]+|\s+y\s+|\s+and\s+|\s+pero\s+/i
+const listMarkerRegex = /^[\-\*\d\.]+\s+/
+const questionRegex = /[¿?]|\b(?:qué|qué|que|cómo|como|cuándo|cuando|dónde|donde|quién|quien|por qué|porque)\b/i
+
+const isNoteLike = (content) => {
+  return noteKeywords.some((word) => content.includes(word)) || questionRegex.test(content)
 }
 
-const taskList = computed(() => {
+const noteMode = computed(() => {
   const content = text.value.toLowerCase().trim()
   if (!content) return false
 
   const lines = content.split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
-  const listStyle = lines.some((line) => listMarkerRegex.test(line) || line.includes(','))
-  const hasTaskWord = isTaskLike(content)
+  const hasNoteWord = isNoteLike(content)
+  const listStyle = lines.length > 1 || lines.some((line) => listMarkerRegex.test(line) || line.includes(','))
 
-  return hasTaskWord && (lines.length > 1 || listStyle || timeRegex.test(content))
+  return hasNoteWord && listStyle
 })
 
-const taskPlan = computed(() => {
-  if (!taskList.value) return { items: [], total: 0 }
+const noteStructure = computed(() => {
+  if (!noteMode.value) return { ideas: [], actions: [], questions: [], decisions: [], others: [], total: 0 }
 
   const rawSegments = text.value
     .split(/\r?\n/)
@@ -83,19 +141,45 @@ const taskPlan = computed(() => {
     .map((segment) => segment.trim().replace(listMarkerRegex, ''))
     .filter((segment) => segment.length > 0)
 
-  const items = rawSegments
-    .map((segment) => {
-      const cleaned = segment
-        .replace(/\b(a las|por la tarde|por la mañana|en la tarde|en la mañana|esta semana|el lunes|el martes|el miércoles|el jueves|el viernes|el sábado|el domingo)\b/gi, '')
-        .replace(/\b(hoy|mañana|manana)\b/gi, '')
-        .trim()
-      return { name: cleaned || segment }
-    })
-    .filter((item) => item.name.length > 0)
+  const classify = (segment) => {
+    const normalized = segment.toLowerCase()
+    if (questionRegex.test(normalized) || segment.includes('?')) {
+      return 'questions'
+    }
+    if (decisionKeywords.some((word) => normalized.includes(word))) {
+      return 'decisions'
+    }
+    if (actionKeywords.some((word) => normalized.includes(word))) {
+      return 'actions'
+    }
+    if (ideaKeywords.some((word) => normalized.includes(word))) {
+      return 'ideas'
+    }
+    if (/\b(pendiente|pendientes|tarea|tareas)\b/i.test(normalized)) {
+      return 'actions'
+    }
+    return 'others'
+  }
 
-  const uniqueItems = Array.from(new Set(items.map((item) => item.name))).map((name) => ({ name }))
+  const categories = {
+    ideas: [],
+    actions: [],
+    questions: [],
+    decisions: [],
+    others: []
+  }
 
-  return { items: uniqueItems.slice(0, 8), total: uniqueItems.length }
+  rawSegments.forEach((segment) => {
+    const category = classify(segment)
+    const cleaned = segment.replace(/^[\-\*\d\.\s]+/, '').trim()
+    const finalText = cleaned.length > 0 ? cleaned : segment
+    if (!categories[category].includes(finalText)) {
+      categories[category].push(finalText)
+    }
+  })
+
+  const total = Object.values(categories).reduce((sum, arr) => sum + arr.length, 0)
+  return { ...categories, total }
 })
 
 const onInput = () => {
