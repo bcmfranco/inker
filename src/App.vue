@@ -13,15 +13,14 @@
       <transition name="fade">
         <div v-if="showResponse" class="respuesta-card">
           <div class="respuesta-body">
-            <template v-if="shoppingList">
-              <p class="response-title">Simulación de precios</p>
+            <template v-if="taskList">
+              <p class="response-title">Plan de tareas</p>
               <ul class="price-list">
-                <li v-for="item in priceMock.items" :key="item.name">
+                <li v-for="item in taskPlan.items" :key="item.name">
                   <span>{{ item.name }}</span>
-                  <strong>{{ item.price }}</strong>
                 </li>
               </ul>
-              <p class="response-total">Total estimado: <strong>{{ priceMock.total }}</strong></p>
+              <p class="response-total">Total de tareas: <strong>{{ taskPlan.total }}</strong></p>
             </template>
             <template v-else>
               <p>Respuesta</p>
@@ -35,7 +34,7 @@
             @mouseleave="pressed = false"
             :class="{ pressed }"
           >
-            {{ shoppingList ? 'Buscar supermercados' : 'Acción' }}
+            {{ taskList ? 'Ver agenda' : 'Acción' }}
           </button>
         </div>
       </transition>
@@ -51,42 +50,52 @@ const showResponse = ref(false)
 const pressed = ref(false)
 let timerId = null
 
-const shoppingList = computed(() => {
+const taskKeywords = [
+  'reunión', 'reunion', 'meeting', 'cita', 'call', 'llamada',
+  'tarea', 'pendiente', 'agenda', 'recordar', 'hoy', 'mañana', 'manana', 'horario'
+]
+
+const timeRegex = /\b(?:hoy|mañana|manana|esta semana|este viernes|el lunes|a las \d{1,2}(?::\d{2})?|\b\d{1,2}:\d{2}\b|\b\d{1,2}h\b)\b/i
+const listMarkerRegex = /^[\-\*\d\.]+\s+/
+const sentenceSeparatorRegex = /[,;•]+|\s+y\s+|\s+and\s+/i
+
+const isTaskLike = (content) => {
+  return taskKeywords.some((word) => content.includes(word)) || timeRegex.test(content)
+}
+
+const taskList = computed(() => {
   const content = text.value.toLowerCase().trim()
   if (!content) return false
 
-  const shoppingKeywords = ['comprar', 'lista', 'pan', 'leche', 'huevos', 'tomate', 'manzana', 'arroz', 'queso', 'pollo', 'verduras', 'frutas', 'detergente', 'jabon', 'cereal']
-  const hasShoppingWord = shoppingKeywords.some((word) => content.includes(word))
   const lines = content.split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
-  const lineCount = lines.length
-  const listStyle = lines.some((line) => /^[\-\*\d\.]+\s+/.test(line) || line.includes(','))
+  const listStyle = lines.some((line) => listMarkerRegex.test(line) || line.includes(','))
+  const hasTaskWord = isTaskLike(content)
 
-  return hasShoppingWord && (lineCount > 1 || listStyle)
+  return hasTaskWord && (lines.length > 1 || listStyle || timeRegex.test(content))
 })
 
-const priceMock = computed(() => {
-  if (!shoppingList.value) return { items: [], total: '$0.00' }
+const taskPlan = computed(() => {
+  if (!taskList.value) return { items: [], total: 0 }
 
-  const lines = text.value
-    .split(/\r?\n|,/) 
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0)
+  const rawSegments = text.value
+    .split(/\r?\n/)
+    .flatMap((line) => line.split(sentenceSeparatorRegex))
+    .map((segment) => segment.trim().replace(listMarkerRegex, ''))
+    .filter((segment) => segment.length > 0)
 
-  const items = lines.slice(0, 6).map((line) => {
-    const name = line.replace(/^[\-\*\d\.\s]+/, '').trim()
-    const base = Math.max(1, Math.min(10, Math.round(name.length / 2)))
-    const value = (base + (name.length % 4)) * 0.75
-    return {
-      name: name || 'Artículo',
-      price: `$${value.toFixed(2)}`
-    }
-  })
+  const items = rawSegments
+    .map((segment) => {
+      const cleaned = segment
+        .replace(/\b(a las|por la tarde|por la mañana|en la tarde|en la mañana|esta semana|el lunes|el martes|el miércoles|el jueves|el viernes|el sábado|el domingo)\b/gi, '')
+        .replace(/\b(hoy|mañana|manana)\b/gi, '')
+        .trim()
+      return { name: cleaned || segment }
+    })
+    .filter((item) => item.name.length > 0)
 
-  const total = items.reduce((sum, item) => {
-    return sum + parseFloat(item.price.replace('$', ''))
-  }, 0)
+  const uniqueItems = Array.from(new Set(items.map((item) => item.name))).map((name) => ({ name }))
 
-  return { items, total: `$${total.toFixed(2)}` }
+  return { items: uniqueItems.slice(0, 8), total: uniqueItems.length }
 })
 
 const onInput = () => {
